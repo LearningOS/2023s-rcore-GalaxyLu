@@ -17,7 +17,7 @@ mod task;
 use crate::config::{MAX_APP_NUM, MAX_SYSCALL_NUM};
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
-use crate::timer::get_time;
+use crate::timer::{get_time_us, get_time};
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
@@ -83,6 +83,7 @@ impl TaskManager {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
+        task0.time = get_time();
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -195,16 +196,19 @@ pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
 }
+///ch3
 pub fn get_current_time()->usize{
     TASK_MANAGER.get_current_time()
 }
+///ch3
 pub fn get_current_status()->TaskStatus{
     TASK_MANAGER.get_current_status()
 }
+///ch3
 pub fn add_syscall_times(syscall_id:usize){
     TASK_MANAGER.add_syscall_times(syscall_id);
 }
-
+///ch3
 pub fn get_syscall_times()->[u32;MAX_SYSCALL_NUM]{
     TASK_MANAGER.get_syscall_times()
 }
