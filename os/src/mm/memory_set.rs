@@ -300,6 +300,50 @@ impl MemorySet {
             false
         }
     }
+///ch4
+    pub fn mmap(& mut self, start:usize, len: usize, port:usize) -> isize {
+
+        let vpnra = VPNRange::new(VirtAddr::from(start).floor(), VirtAddr::from(start + len).ceil());
+        for vpn in vpnra{
+            if let Some (pte) = self.page_table.find_pte(vpn){
+                if pte.is_valid(){
+                    return -1;
+                    }
+            }
+        }
+        let mut map_prem = MapPermission::U;
+        if (port & 1)!=0{
+            map_prem|=MapPermission::R;
+        }
+        if (port & 2)!=0{
+            map_prem|=MapPermission::W;
+        }
+        if (port & 4)!=0{
+            map_prem|=MapPermission::X;
+        }
+        println!("start_va:{:#x}~end_va:{:#x} map_perm:{:#x}",start,start+len,map_prem);
+
+        self.insert_framed_area(VirtAddr::from(start), VirtAddr::from(start + len), map_prem);
+        0
+     }
+///ch4
+     pub fn munmap(&mut self,start: usize,len: usize)->isize{
+        let  vpnra = VPNRange::new(VirtAddr::from(start).floor(), VirtAddr::from(start+len).ceil());
+        for vpn in vpnra{
+            let pte = self.page_table.find_pte(vpn);
+            if pte.is_none() || !pte.unwrap().is_valid(){
+                return -1;
+            }
+        }
+        for vpn in vpnra{
+            for area in &mut self.areas{
+                if vpn < area.vpn_range.get_end() && vpn >= area.vpn_range.get_start(){
+                    area.unmap_one(&mut self.page_table, vpn);
+                }
+            }
+        }
+        0
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
@@ -400,6 +444,7 @@ impl MapArea {
             current_vpn.step();
         }
     }
+
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -447,3 +492,5 @@ pub fn remap_test() {
         .executable(),);
     println!("remap_test passed!");
 }
+
+

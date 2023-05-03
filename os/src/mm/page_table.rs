@@ -108,7 +108,7 @@ impl PageTable {
         result
     }
     /// Find PageTableEntry by VirtPageNum
-    fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+    pub fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
         let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;
@@ -212,4 +212,11 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .translate_va(VirtAddr::from(va))
         .unwrap()
         .get_mut()
+}
+///ch4
+pub fn translated_physical_address(token: usize, ptr: *const u8) -> usize{
+    let page_table = PageTable::from_token(token);
+    let va = VirtAddr::from(ptr as usize);
+    let ppn = page_table.find_pte(va.floor()).unwrap().ppn();
+    super::PhysAddr::from(ppn).0 + va.page_offset()
 }
