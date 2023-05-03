@@ -8,7 +8,7 @@ use crate::{
     task::{
         add_task, current_task, current_user_token, exit_current_and_run_next,
         suspend_current_and_run_next, TaskStatus, translated_phyaddress,
-         get_current_status, get_syscall_times, get_current_time, mmap, munmap,
+         get_current_status, get_syscall_times, get_current_time, mmap, munmap, TaskControlBlock, set_task_prio,
     },
         timer::get_time_us,
     };
@@ -77,6 +77,7 @@ pub fn sys_exec(path: *const u8) -> isize {
         -1
     }
 }
+
 
 /// If there is not a child process whose pid is same as given, return -1.
 /// Else if there is a child process but it is still running, return -2.
@@ -168,7 +169,7 @@ else {
 // YOUR JOB: Implement munmap.
 pub fn sys_munmap(start: usize, len: usize) -> isize {
     trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    //current_task().unwrap().pid.0
+    current_task().unwrap().pid.0;
     if start % 4096 != 0{
         return -1;
     }
@@ -192,19 +193,41 @@ pub fn sys_sbrk(size: i32) -> isize {
 
 /// YOUR JOB: Implement spawn.
 /// HINT: fork + exec =/= spawn
-pub fn sys_spawn(_path: *const u8) -> isize {
+pub fn sys_spawn(path: *const u8) -> isize {
     trace!(
         "kernel:pid[{}] sys_spawn NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+
+    let token = current_user_token();
+    let path = translated_str(token, path);
+    if let Some(data) = get_app_data_by_name(path.as_str()){
+        let new_task = Arc::new(TaskControlBlock::new(data));
+        let mut inner = new_task.inner_exclusive_access();
+        let parent = current_task().unwrap();
+        let mut parent_inner = parent.inner_exclusive_access();
+        inner.parent = Some(Arc::downgrade(&parent));
+        parent_inner.children.push(new_task.clone());
+        drop(inner);
+        drop(parent_inner);
+        let new_pid = new_task.pid.0;
+        add_task(new_task);
+        new_pid as isize
+    }
+    else{
+        -1
+    }
 }
 
 // YOUR JOB: Set task priority.
-pub fn sys_set_priority(_prio: isize) -> isize {
+pub fn sys_set_priority(prio: isize) -> isize {
     trace!(
         "kernel:pid[{}] sys_set_priority NOT IMPLEMENTED",
         current_task().unwrap().pid.0
     );
-    -1
+    if prio <= 1{
+        return -1;
+    }
+    set_task_prio(prio);
+    prio as isize
 }

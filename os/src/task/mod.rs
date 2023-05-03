@@ -21,7 +21,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::loader::get_app_data_by_name;
+use crate::{loader::get_app_data_by_name, config::BIG_STRIDE};
 use alloc::sync::Arc;
 use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
@@ -34,7 +34,7 @@ pub use manager::add_task;
 pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
     Processor,add_syscall_times,translated_phyaddress,get_current_time,get_current_status,
-    get_syscall_times,mmap,munmap
+    get_syscall_times,mmap,munmap,set_task_prio
 };
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
@@ -46,6 +46,8 @@ pub fn suspend_current_and_run_next() {
     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
     // Change status to Ready
     task_inner.task_status = TaskStatus::Ready;
+    task_inner.task_stride = task_inner.task_stride + BIG_STRIDE/task_inner.task_prio;
+
     drop(task_inner);
     // ---- release current PCB
 

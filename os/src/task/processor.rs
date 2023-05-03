@@ -48,8 +48,15 @@ impl Processor {
     pub fn current(&self) -> Option<Arc<TaskControlBlock>> {
         self.current.as_ref().map(Arc::clone)
     }
+    //ch5
+fn set_task_prio(&self, prio:isize)
+ {
+    let task =self.current().unwrap();
+    let mut  inner = task.inner_exclusive_access();
+    inner.task_prio = prio as usize;
+ }
 ///ch5
-   pub fn current_translated_phyaddress(&self, ptr: *const u8) ->usize{
+   fn current_translated_phyaddress(&self, ptr: *const u8) ->usize{
         let task = self.current().unwrap();
         let  inner = task.inner_exclusive_access();
         let current_token = inner.get_user_token();
@@ -178,3 +185,7 @@ pub fn mmap(start: usize, len: usize, port: usize) ->isize{
 pub fn munmap(start: usize, len: usize) ->isize{
     PROCESSOR.exclusive_access().munmap(start, len)
 }
+///set task's priority
+ pub fn set_task_prio(prio: isize){
+    PROCESSOR.exclusive_access().set_task_prio(prio);
+ }

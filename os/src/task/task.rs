@@ -5,6 +5,7 @@ use crate::config::TRAP_CONTEXT_BASE;
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
 use crate::config::{ MAX_SYSCALL_NUM};
+use crate::timer::{get_time_us};
 // use crate::mm::{
 //     kernel_stack_position
 // };
@@ -75,7 +76,11 @@ pub struct TaskControlBlockInner {
  ///ch4
     pub syscall_times:[u32; MAX_SYSCALL_NUM],
 ///ch4
-    pub time:usize
+    pub time:usize,
+
+    pub task_prio:usize,
+
+    pub task_stride:usize,
 
 }
 
@@ -128,7 +133,10 @@ impl TaskControlBlock {
                     heap_bottom: user_sp,
                     program_brk: user_sp,
                     syscall_times:[0; MAX_SYSCALL_NUM],
-                    time:0
+                    time:get_time_us(),
+                    task_prio:16,
+                    task_stride:0
+
                 })
             },
         };
@@ -161,6 +169,8 @@ impl TaskControlBlock {
         inner.trap_cx_ppn = trap_cx_ppn;
         // initialize base_size
         inner.base_size = user_sp;
+
+        inner.task_prio = 16;
         // initialize trap_cx
         let trap_cx = inner.get_trap_cx();
         *trap_cx = TrapContext::app_init_context(
@@ -203,7 +213,9 @@ impl TaskControlBlock {
                     heap_bottom: parent_inner.heap_bottom,
                     program_brk: parent_inner.program_brk,
                     syscall_times: parent_inner.syscall_times,
-                    time: parent_inner.time
+                    time: parent_inner.time,
+                    task_prio: parent_inner.task_prio,
+                    task_stride: parent_inner.task_stride,
                 })
             },
         });
