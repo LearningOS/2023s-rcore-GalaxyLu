@@ -14,9 +14,12 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use crate::config::MAX_SYSCALL_NUM;
 use crate::loader::{get_app_data, get_num_app};
 use crate::sync::UPSafeCell;
+use crate::timer::{get_time_us};
 use crate::trap::TrapContext;
+use crate::mm::translated_physical_address;
 use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
@@ -77,6 +80,7 @@ impl TaskManager {
     /// But in ch4, we load apps statically, so the first task is a real app.
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
+        inner.tasks[0].time = get_time_us();
         let next_task = &mut inner.tasks[0];
         next_task.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &next_task.task_cx as *const TaskContext;
@@ -141,6 +145,9 @@ impl TaskManager {
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.current_task = next;
+            if inner.tasks[current].time == 0{
+              inner.tasks[current].time = get_time_us();
+            }
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             drop(inner);
@@ -153,6 +160,40 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+   fn  current_translated_phyaddress(&self, ptr: *const u8) ->usize{
+        let current_token = self.get_current_token();
+        translated_physical_address(current_token,  ptr)
+   }
+   fn get_current_time(&self)->usize{
+    let inner = self.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].time
+}
+fn get_current_status(&self)->TaskStatus{
+    let inner = self.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].task_status
+}
+fn add_syscall_times(&self,syscall_id:usize){
+    let mut inner = self.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].syscall_times[syscall_id] += 1;
+}
+fn get_syscall_times(&self)->[u32;MAX_SYSCALL_NUM]{
+    let inner = self.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].syscall_times
+}
+fn mmap(&self, start:usize, len :usize, port:usize) ->isize{
+    let mut  inner = self.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].memory_set.mmap(start, len, port)
+}
+fn munmap(&self, start:usize, len:usize)-> isize{
+    let mut  inner = self.inner.exclusive_access();
+    let current = inner.current_task;
+    inner.tasks[current].memory_set.munmap(start, len)
+}
 }
 
 /// Run the first task in task list.
@@ -201,4 +242,33 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+///ch4
+pub fn  translated_phyaddress(ptr: *const u8) ->usize{
+
+    TASK_MANAGER.current_translated_phyaddress(ptr)
+}
+///ch4
+pub fn get_current_time()->usize{
+    TASK_MANAGER.get_current_time()
+}
+///ch4
+pub fn get_current_status()->TaskStatus{
+    TASK_MANAGER.get_current_status()
+}
+///ch4
+pub fn add_syscall_times(syscall_id:usize){
+    TASK_MANAGER.add_syscall_times(syscall_id);
+}
+///ch4
+pub fn get_syscall_times()->[u32;MAX_SYSCALL_NUM]{
+    TASK_MANAGER.get_syscall_times()
+}
+///ch4
+pub fn mmap(start: usize, len: usize, port: usize) ->isize{
+    TASK_MANAGER.mmap(start, len, port)
+}
+///ch4
+pub fn munmap(start: usize, len: usize) ->isize{
+    TASK_MANAGER.munmap(start, len)
 }
