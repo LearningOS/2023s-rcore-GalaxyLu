@@ -23,18 +23,22 @@ mod switch;
 mod task;
 
 use crate::fs::{open_file, OpenFlags};
+use crate::{config::BIG_STRIDE};
 use alloc::sync::Arc;
 pub use context::TaskContext;
 use lazy_static::*;
 pub use manager::{fetch_task, TaskManager};
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
-
+use crate::config::MAX_SYSCALL_NUM;
+use crate::timer::{get_time_us};
+use crate::mm::translated_physical_address;
 pub use id::{kstack_alloc, pid_alloc, KernelStack, PidHandle};
 pub use manager::add_task;
 pub use processor::{
     current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
-    Processor,
+    Processor,add_syscall_times,translated_phyaddress,get_current_time,get_current_status,
+    get_syscall_times,mmap,munmap,set_task_prio
 };
 /// Suspend the current 'Running' task and run the next task in task list.
 pub fn suspend_current_and_run_next() {
@@ -46,6 +50,8 @@ pub fn suspend_current_and_run_next() {
     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
     // Change status to Ready
     task_inner.task_status = TaskStatus::Ready;
+    task_inner.task_stride = task_inner.task_stride + BIG_STRIDE/task_inner.task_prio;
+
     drop(task_inner);
     // ---- release current PCB
 
