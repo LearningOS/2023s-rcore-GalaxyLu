@@ -49,6 +49,13 @@ pub struct ProcessControlBlockInner {
     pub semaphore_list: Vec<Option<Arc<Semaphore>>>,
     /// condvar list
     pub condvar_list: Vec<Option<Arc<Condvar>>>,
+    ///ch8
+    pub deadlock_det_enabled: bool,
+    pub mutex_alloc: Vec<Option<usize>>,
+    pub mutex_request: Vec<Option<usize>>,
+    pub sem_avail: Vec<usize>,
+    pub sem_alloc: Vec<Vec<usize>>,
+    pub sem_request: Vec<Vec<usize>>,
 }
 
 impl ProcessControlBlockInner {
@@ -96,6 +103,7 @@ impl ProcessControlBlock {
         let (memory_set, ustack_base, entry_point) = MemorySet::from_elf(elf_data);
         // allocate a pid
         let pid_handle = pid_alloc();
+
         let process = Arc::new(Self {
             pid: pid_handle,
             inner: unsafe {
@@ -119,6 +127,12 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    deadlock_det_enabled:false,
+                    mutex_alloc:Vec::new(),
+                    mutex_request:Vec::new(),
+                    sem_avail:Vec::new(),
+                    sem_alloc:Vec::new(),
+                    sem_request:Vec::new(),
                 })
             },
         });
@@ -144,6 +158,9 @@ impl ProcessControlBlock {
         // add main thread to the process
         let mut process_inner = process.inner_exclusive_access();
         process_inner.tasks.push(Some(Arc::clone(&task)));
+        process_inner.sem_request . resize_with(16, || vec![0;16] );
+        process_inner.sem_alloc.resize_with(16, || vec![0;16] );
+        process_inner.sem_avail.resize(16,0);
         drop(process_inner);
         insert_into_pid2process(process.getpid(), Arc::clone(&process));
         // add main thread to scheduler
@@ -228,6 +245,22 @@ impl ProcessControlBlock {
                 new_fd_table.push(None);
             }
         }
+        let mut  matrix:Vec<Vec<usize>> = Vec::new();
+        for _ in 0..8 {
+            let mut row: Vec<usize> = Vec::new();
+            for _ in 0..20 {
+                row.push(0);
+            }
+            matrix.push(row);
+        }
+        let mut nrequest:Vec<Option<usize>> = Vec::new();
+        for _ in 0..8 {
+            nrequest.push(None);
+        }
+        let mut navail:Vec<usize> = Vec::new();
+        for _ in 0..20 {
+            navail.push(0);
+        }
         // create child process pcb
         let child = Arc::new(Self {
             pid,
@@ -245,6 +278,12 @@ impl ProcessControlBlock {
                     mutex_list: Vec::new(),
                     semaphore_list: Vec::new(),
                     condvar_list: Vec::new(),
+                    deadlock_det_enabled:false,
+                    mutex_alloc:Vec::new(),
+                    mutex_request:Vec::new(),
+                    sem_avail:Vec::new(),
+                    sem_alloc:Vec::new(),
+                    sem_request:Vec::new(),
                 })
             },
         });
@@ -267,6 +306,10 @@ impl ProcessControlBlock {
         // attach task to child process
         let mut child_inner = child.inner_exclusive_access();
         child_inner.tasks.push(Some(Arc::clone(&task)));
+        child_inner.sem_request . resize_with(16, || vec![0;16] );
+        child_inner.sem_alloc.resize_with(16, || vec![0;16] );
+        child_inner.sem_avail.resize(16,0);
+
         drop(child_inner);
         // modify kstack_top in trap_cx of this thread
         let task_inner = task.inner_exclusive_access();
